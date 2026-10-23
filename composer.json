@@ -1,0 +1,7 @@
+{
+    "name": "helpdesk/ticketing-system",
+    "license": "proprietary",
+    "require": {
+        "phpmailer/phpmailer": "^6.10"
+    }
+}

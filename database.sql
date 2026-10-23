@@ -1,0 +1,79 @@
+CREATE DATABASE IF NOT EXISTS helpdesk CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+USE helpdesk;
+
+CREATE TABLE IF NOT EXISTS users (
+  id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  username VARCHAR(60) NOT NULL UNIQUE,
+  name VARCHAR(100) NOT NULL,
+  password_hash VARCHAR(255) NOT NULL,
+  role ENUM('staff','it_staff','admin') NOT NULL,
+  category VARCHAR(20) NOT NULL DEFAULT 'IT Staff',
+  active TINYINT(1) NOT NULL DEFAULT 1,
+  email VARCHAR(254) NULL,
+  email_verified TINYINT(1) NOT NULL DEFAULT 0,
+  two_factor_enabled TINYINT(1) NOT NULL DEFAULT 0,
+  avatar_path VARCHAR(255) NULL,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE KEY uq_users_email (email)
+) ENGINE=InnoDB;
+CREATE TABLE IF NOT EXISTS email_codes (
+  id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  user_id BIGINT UNSIGNED NOT NULL,
+  purpose VARCHAR(20) NOT NULL,
+  target_email VARCHAR(254) NULL,
+  code_hash CHAR(64) NOT NULL,
+  expires_at DATETIME NOT NULL,
+  attempts TINYINT UNSIGNED NOT NULL DEFAULT 0,
+  consumed_at DATETIME NULL,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  INDEX idx_email_codes_user_purpose (user_id,purpose),
+  INDEX idx_email_codes_expiry (expires_at)
+) ENGINE=InnoDB;
+CREATE TABLE IF NOT EXISTS tickets (
+  id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  title LONGTEXT NOT NULL,
+  description LONGTEXT NOT NULL,
+  requester_id BIGINT UNSIGNED NULL,
+  requester_name VARCHAR(100) NULL,
+  requester_email VARCHAR(254) NULL,
+  status ENUM('Open','In Progress','Closed') NOT NULL DEFAULT 'Open',
+  priority ENUM('Low','Medium','High','Urgent') NOT NULL DEFAULT 'Medium',
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  closed_at TIMESTAMP NULL,
+  CONSTRAINT fk_ticket_requester FOREIGN KEY(requester_id) REFERENCES users(id) ON DELETE SET NULL,
+  INDEX idx_ticket_updated(updated_at)
+) ENGINE=InnoDB;
+CREATE TABLE IF NOT EXISTS user_ticket (
+  user_id BIGINT UNSIGNED NOT NULL, ticket_id BIGINT UNSIGNED NOT NULL,
+  assignment_role VARCHAR(20) NOT NULL DEFAULT 'assignee', assigned_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY(user_id,ticket_id), FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE,
+  FOREIGN KEY(ticket_id) REFERENCES tickets(id) ON DELETE CASCADE
+) ENGINE=InnoDB;
+CREATE TABLE IF NOT EXISTS ticket_files (
+  id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY, ticket_id BIGINT UNSIGNED NOT NULL,
+  uploader_id BIGINT UNSIGNED NULL, kind ENUM('screenshot','signed_form') NOT NULL,
+  original_name VARCHAR(180) NOT NULL, stored_name VARCHAR(220) NOT NULL UNIQUE,
+  mime_type VARCHAR(100) NOT NULL, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY(ticket_id) REFERENCES tickets(id) ON DELETE CASCADE,
+  FOREIGN KEY(uploader_id) REFERENCES users(id) ON DELETE SET NULL
+) ENGINE=InnoDB;
+CREATE TABLE IF NOT EXISTS forms (
+  id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY, title VARCHAR(255) NOT NULL,
+  status VARCHAR(40) NOT NULL DEFAULT 'Pending signature', comments TEXT NULL,
+  created_by BIGINT UNSIGNED NULL, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY(created_by) REFERENCES users(id) ON DELETE SET NULL
+) ENGINE=InnoDB;
+CREATE TABLE IF NOT EXISTS ticket_form (
+  ticket_id BIGINT UNSIGNED NOT NULL, form_id BIGINT UNSIGNED NOT NULL, PRIMARY KEY(ticket_id,form_id),
+  FOREIGN KEY(ticket_id) REFERENCES tickets(id) ON DELETE CASCADE,
+  FOREIGN KEY(form_id) REFERENCES forms(id) ON DELETE CASCADE
+) ENGINE=InnoDB;
+CREATE TABLE IF NOT EXISTS activity (
+  id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY, ticket_id BIGINT UNSIGNED NOT NULL,
+  user_id BIGINT UNSIGNED NULL, action VARCHAR(500) NOT NULL, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY(ticket_id) REFERENCES tickets(id) ON DELETE CASCADE,
+  FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE SET NULL
+) ENGINE=InnoDB;
+
+-- Create the initial admin and IT staff account using the PHP setup instructions.
